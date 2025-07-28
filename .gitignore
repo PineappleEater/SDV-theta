@@ -121,7 +121,12 @@ notebooks
 tests/readme_test
 
 # theta project specific files
-theta/output/
+# Allow example output files, but ignore new generated files
+theta/output/*
+!theta/output/gaussian_copula/
+theta/output/gaussian_copula/*
+!theta/output/gaussian_copula/GaussianCopula_summary.txt
+!theta/output/gaussian_copula/GaussianCopula_synthetic_data.csv
 theta/source_data/*.csv
 theta/source_data/*.data
 *.csv
