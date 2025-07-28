@@ -25,20 +25,20 @@ def main():
         # 1. 加载数据
         df = load_data(data_path)
         
-        # 2. 预处理数据 (CTGAN需要较多数据，采样20000行，处理高基数列)
-        df_processed = preprocess_data(df, sample_size=20000, reduce_cardinality=True)
+        # 2. 预处理数据 (采样5000行，快速训练)
+        df_processed = preprocess_data(df, sample_size=5000, reduce_cardinality=True)
         
         # 3. 创建元数据
         metadata = create_metadata(df_processed)
         
-        # 4. 创建 CTGAN 合成器
+        # 4. 创建 CTGAN 合成器 (快速配置)
         print("创建 CTGAN 合成器...")
         synthesizer = CTGANSynthesizer(
             metadata=metadata,
-            epochs=100,                    # 训练轮数
+            epochs=15,                    # 降低到15轮训练
             batch_size=500,               # 批处理大小
-            generator_dim=(256, 256),     # 生成器维度
-            discriminator_dim=(256, 256), # 判别器维度
+            generator_dim=(128, 128),     # 生成器维度
+            discriminator_dim=(128, 128), # 判别器维度
             generator_lr=2e-4,            # 生成器学习率
             discriminator_lr=2e-4,        # 判别器学习率
             discriminator_steps=1,        # 每轮训练判别器的步数

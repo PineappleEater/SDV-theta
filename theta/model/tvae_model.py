@@ -25,25 +25,24 @@ def main():
         # 1. 加载数据
         df = load_data(data_path)
         
-        # 2. 预处理数据 (采样15000行，处理高基数列)
-        df_processed = preprocess_data(df, sample_size=15000, reduce_cardinality=True)
+        # 2. 预处理数据 (采样5000行，快速训练)
+        df_processed = preprocess_data(df, sample_size=5000, reduce_cardinality=True)
         
         # 3. 创建元数据
         metadata = create_metadata(df_processed)
         
-        # 4. 创建 TVAE 合成器
+        # 4. 创建 TVAE 合成器 (快速配置)
         print("创建 TVAE 合成器...")
         synthesizer = TVAESynthesizer(
             metadata=metadata,
-            epochs=100,                   # 训练轮数
-            batch_size=500,              # 批处理大小
-            encoder_dim=(128, 128),      # 编码器维度
-            decoder_dim=(128, 128),      # 解码器维度
-            compress_dims=(128, 128),    # 压缩层维度
-            decompress_dims=(128, 128),  # 解压缩层维度
-            l2scale=1e-5,               # L2正则化系数
-            loss_factor=2,              # 损失因子
-            verbose=True                # 显示训练进度
+            epochs=20,                    # 降低到20轮训练
+            batch_size=500,               # 批处理大小
+            encoder_dim=(64, 64),         # 编码器维度
+            decoder_dim=(64, 64),         # 解码器维度
+            compress_dims=(64, 64),       # 压缩维度
+            decompress_dims=(64, 64),     # 解压缩维度
+            l2scale=1e-5,                 # L2正则化
+            verbose=True                  # 显示训练进度
         )
         
         # 5. 训练并生成数据

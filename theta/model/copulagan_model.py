@@ -25,20 +25,20 @@ def main():
         # 1. 加载数据
         df = load_data(data_path)
         
-        # 2. 预处理数据 (采样15000行，处理高基数列)
-        df_processed = preprocess_data(df, sample_size=15000, reduce_cardinality=True)
+        # 2. 预处理数据 (采样5000行，快速训练)
+        df_processed = preprocess_data(df, sample_size=5000, reduce_cardinality=True)
         
         # 3. 创建元数据
         metadata = create_metadata(df_processed)
         
-        # 4. 创建 CopulaGAN 合成器
+        # 4. 创建 CopulaGAN 合成器 (快速配置)
         print("创建 CopulaGAN 合成器...")
         synthesizer = CopulaGANSynthesizer(
             metadata=metadata,
-            epochs=50,                     # 训练轮数 (比CTGAN少一些)
+            epochs=10,                    # 降低到10轮训练
             batch_size=500,               # 批处理大小
-            generator_dim=(128, 128),     # 生成器维度
-            discriminator_dim=(128, 128), # 判别器维度
+            generator_dim=(64, 64),       # 减小网络维度
+            discriminator_dim=(64, 64),   # 减小网络维度
             generator_lr=2e-4,            # 生成器学习率
             discriminator_lr=2e-4,        # 判别器学习率
             discriminator_steps=1,        # 每轮训练判别器的步数

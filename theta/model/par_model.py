@@ -99,8 +99,8 @@ def main():
         # 1. 加载数据
         df = load_data(data_path)
         
-        # 2. 预处理数据 (PAR模型需要较多数据来学习序列模式，采样30000行)
-        df_processed = preprocess_data(df, sample_size=30000)
+        # 2. 预处理数据 (PAR模型需要序列数据，采样10000行)
+        df_processed = preprocess_data(df, sample_size=10000)
         
         # 3. 准备序列数据
         df_sequential = prepare_sequential_data(df_processed)
@@ -111,11 +111,11 @@ def main():
         # 4. 创建序列元数据
         metadata = create_sequential_metadata(df_sequential)
         
-        # 5. 创建 PAR 合成器
+        # 5. 创建 PAR 合成器 (快速配置)
         print("创建 PAR 合成器...")
         synthesizer = PARSynthesizer(
             metadata=metadata,
-            epochs=50,              # 训练轮数
+            epochs=15,              # 降低到15轮训练
             context_columns=None,   # 上下文列（可选）
             verbose=True           # 显示训练进度
         )

@@ -19,11 +19,12 @@ def run_model(model_name, script_path):
     start_time = time.time()
     
     try:
-        # 直接从当前目录(theta)运行模型脚本
+        # 直接从当前目录(theta)运行模型脚本，设置超时时间
         result = subprocess.run(
             [sys.executable, script_path],
             capture_output=True,
-            text=True
+            text=True,
+            timeout=300  # 5分钟超时
         )
         
         end_time = time.time()
@@ -41,6 +42,11 @@ def run_model(model_name, script_path):
             
         return result.returncode == 0, duration
         
+    except subprocess.TimeoutExpired:
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"⏰ {model_name} 模型执行超时 (5分钟)，跳过此模型")
+        return False, duration
     except Exception as e:
         end_time = time.time()
         duration = end_time - start_time
