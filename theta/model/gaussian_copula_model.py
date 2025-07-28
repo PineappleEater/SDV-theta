@@ -18,8 +18,8 @@ def main():
     )
     
     # 数据路径
-    data_path = "../source_data/th_series_data.csv"
-    output_dir = "../output/gaussian_copula"
+    data_path = "source_data/th_series_data.csv"
+    output_dir = "output/gaussian_copula"
     
     try:
         # 1. 加载数据

@@ -19,13 +19,9 @@ def run_model(model_name, script_path):
     start_time = time.time()
     
     try:
-        # 切换到模型目录并运行脚本
-        model_dir = os.path.dirname(script_path)
-        script_name = os.path.basename(script_path)
-        
+        # 直接从当前目录(theta)运行模型脚本
         result = subprocess.run(
-            [sys.executable, script_name],
-            cwd=model_dir,
+            [sys.executable, script_path],
             capture_output=True,
             text=True
         )
@@ -57,11 +53,11 @@ def main():
     
     # 定义所有模型
     models = [
-        ("GaussianCopula", "gaussian_copula/gaussian_copula_model.py"),
-        ("CopulaGAN", "copulagan/copulagan_model.py"),
-        ("TVAE", "tvae/tvae_model.py"),
-        ("PAR", "par/par_model.py"),      # PAR序列模型
-        ("CTGAN", "ctgan/ctgan_model.py")  # CTGAN放最后，因为训练时间最长
+        ("GaussianCopula", "model/gaussian_copula_model.py"),
+        ("CopulaGAN", "model/copulagan_model.py"),
+        ("TVAE", "model/tvae_model.py"),
+        ("PAR", "model/par_model.py"),      # PAR序列模型
+        ("CTGAN", "model/ctgan_model.py")  # CTGAN放最后，因为训练时间最长
     ]
     
     results = {}
