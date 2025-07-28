@@ -119,3 +119,9 @@ tutorials/**/*.pkl
 tutorials/**/*metadata.json
 notebooks
 tests/readme_test
+
+# theta project specific files
+theta/output/
+theta/source_data/*.csv
+theta/source_data/*.data
+*.csv
