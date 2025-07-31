@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-PAR 模型 - 基于概率自回归的序列数据合成
-适用场景: 时间序列数据，具有序列依赖关系的数据
+序列专用 PAR 模型 - 基于概率自回归的时间序列生成模型 📈
+✨ 序列建模: 专门针对时间序列数据设计，处理序列依赖关系
+适用场景: 时间序列数据，具有明确的时间顺序和序列依赖关系
 """
 
 import sys
@@ -9,177 +10,178 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sdv.sequential import PARSynthesizer
-from sdv.metadata import Metadata
+from sdv.metadata import SingleTableMetadata
+from sdv.evaluation.single_table import evaluate_quality
 from utils import *
 import pandas as pd
-
-def prepare_sequential_data(df):
-    """为PAR模型准备序列数据"""
-    print("正在为PAR模型准备序列数据...")
-    
-    # 确保有用户ID列用于分组序列
-    if 'user_id' not in df.columns:
-        print("❌ 数据中没有user_id列，PAR模型需要序列标识符")
-        return None
-    
-    # 排序数据以确保时间顺序
-    time_cols = ['start_time', 'end_time', 'create_time', 'update_time']
-    sort_col = None
-    
-    for col in time_cols:
-        if col in df.columns:
-            sort_col = col
-            break
-    
-    if sort_col:
-        # 先转换为数值时间戳
-        df[sort_col] = pd.to_datetime(df[sort_col], errors='coerce')
-        df = df.sort_values(['user_id', sort_col])
-        # 转换为Unix时间戳
-        df[sort_col] = df[sort_col].astype(int) // 10**9
-        print(f"✓ 已按 user_id 和 {sort_col} 排序")
-    else:
-        df = df.sort_values('user_id')
-        print("✓ 已按 user_id 排序")
-    
-    # 检查每个用户的序列长度
-    sequence_lengths = df.groupby('user_id').size()
-    print(f"✓ 用户数量: {len(sequence_lengths)}")
-    print(f"✓ 平均序列长度: {sequence_lengths.mean():.1f}")
-    print(f"✓ 序列长度范围: {sequence_lengths.min()} - {sequence_lengths.max()}")
-    
-    # 过滤掉序列太短的用户（少于2个记录）
-    valid_users = sequence_lengths[sequence_lengths >= 2].index
-    df_filtered = df[df['user_id'].isin(valid_users)]
-    
-    if len(df_filtered) < len(df):
-        removed_count = len(df) - len(df_filtered)
-        print(f"✓ 已移除 {removed_count} 条记录（来自序列长度<2的用户）")
-    
-    return df_filtered
-
-def create_sequential_metadata(df):
-    """创建序列数据的元数据"""
-    print("正在创建序列数据元数据...")
-    
-    metadata = Metadata()
-    metadata.detect_from_dataframe(
-        data=df,
-        table_name='health_sequences'
-    )
-    
-    # 设置序列相关的元数据
-    metadata.set_sequence_key('health_sequences', 'user_id')
-    
-    # 如果有时间列，设置为序列索引
-    time_cols = ['start_time', 'end_time', 'create_time', 'update_time']
-    for col in time_cols:
-        if col in df.columns:
-            try:
-                metadata.set_sequence_index('health_sequences', col)
-                print(f"✓ 已设置 {col} 为序列索引")
-                break
-            except:
-                continue
-    
-    print("✓ 序列元数据创建完成")
-    return metadata
+import numpy as np
 
 def main():
     print_model_info(
-        "PAR", 
-        "基于概率自回归的序列数据合成模型，专门用于时间序列和具有序列依赖关系的数据"
+        "Sequential PAR", 
+        "📈 序列专用概率自回归模型：时间序列建模 + 智能序列处理 + 序列依赖优化"
     )
     
-    # 数据路径
+    # 📈 序列模型专用配置参数
     data_path = "source_data/th_series_data.csv"
     output_dir = "output/par"
+    sample_size = 12000  # 统一的采样大小
+    num_sequences = 50   # 生成序列数量（PAR专用）
+    sequence_length = 40 # 每个序列长度
+    epochs = 50          # PAR训练轮数
+    target_user_id = 169 # 目标用户ID
     
     try:
-        # 1. 加载数据
+        # 1. 智能序列数据加载和预处理
+        print("\n🔄 步骤1: 智能序列数据处理")
+        
+        # 加载数据
         df = load_data(data_path)
         
-        # 2. 预处理数据 (PAR模型需要序列数据，采样10000行)
-        df_processed = preprocess_data(df, sample_size=10000)
+        # 序列数据预处理（单用户数据）
+        df_processed = preprocess_sequential_data(
+            df, 
+            user_col='user_id',
+            target_user_id=target_user_id,
+            sample_size=sample_size
+        )
         
-        # 3. 准备序列数据
-        df_sequential = prepare_sequential_data(df_processed)
-        if df_sequential is None:
-            print("❌ 无法准备序列数据，退出PAR模型训练")
-            return
+        if len(df_processed) == 0:
+            raise ValueError("预处理后数据为空")
         
-        # 4. 创建序列元数据
-        metadata = create_sequential_metadata(df_sequential)
+        print(f"📊 ✓ 序列预处理完成，最终数据: {df_processed.shape}")
         
-        # 5. 创建 PAR 合成器 (快速配置)
-        print("创建 PAR 合成器...")
+        # 2. 创建序列元数据
+        print("\n🔄 步骤2: 创建序列元数据")
+        metadata = create_sequential_metadata(df_processed)
+        
+        # 3. 初始化PAR合成器
+        print("\n🔄 步骤3: 初始化PAR合成器")
         synthesizer = PARSynthesizer(
             metadata=metadata,
-            epochs=15,              # 降低到15轮训练
-            context_columns=None,   # 上下文列（可选）
-            verbose=True           # 显示训练进度
+            epochs=epochs,
+            verbose=True
         )
         
-        # 6. 训练并生成数据
-        print("正在训练PAR模型（这可能需要较长时间）...")
-        start_time = datetime.now()
+        print(f"📊 ✓ PAR合成器初始化完成 (epochs={epochs})")
         
-        synthesizer.fit(df_sequential)
+        # 4. 带进度条的模型训练
+        print("\n🔄 步骤4: 开始训练...")
+        
+        start_time = datetime.now()
+        with progress_bar(total=epochs, desc="训练PAR模型") as pbar:
+            # PAR的fit方法没有callback，我们使用简单的进度指示
+            synthesizer.fit(df_processed)
+            pbar.update(epochs)  # 训练完成后更新进度条
         
         train_time = datetime.now() - start_time
-        print(f"✓ PAR模型训练完成，耗时: {train_time}")
+        print(f"📊 ✓ 训练完成！耗时: {train_time}")
         
-        # 7. 生成合成数据
-        print("正在生成合成序列数据...")
-        # 为PAR模型，我们通过指定序列数量来生成数据
-        num_sequences = min(50, len(df_sequential['user_id'].unique()))
-        synthetic_data = synthesizer.sample(num_sequences=num_sequences)
+        # 5. 带进度条的数据生成
+        print(f"\n🔄 步骤5: 生成 {num_sequences} 个序列...")
         
-        print(f"✓ 成功生成 {len(synthetic_data)} 行合成序列数据")
+        with progress_bar(total=num_sequences, desc="生成合成数据") as pbar:
+            synthetic_data = synthesizer.sample(num_sequences=num_sequences)
+            pbar.update(num_sequences)
         
-        # 8. 评估模型（对于序列数据，评估会有所不同）
-        print("正在评估PAR模型...")
-        try:
-            # 序列数据的评估可能需要特殊处理
-            quality_report = evaluate_model(
-                df_sequential, 
-                synthetic_data, 
-                metadata, 
-                "PAR"
-            )
-        except Exception as e:
-            print(f"⚠️  序列数据评估遇到问题: {e}")
-            quality_report = None
+        print(f"📊 ✓ 数据生成完成！生成数据: {synthetic_data.shape}")
         
-        # 9. 保存结果
-        save_results(
-            synthetic_data, 
-            "PAR", 
-            output_dir, 
-            metadata, 
-            quality_report, 
-            train_time
+        # 6. 模型评估
+        print("\n🔄 步骤6: 模型质量评估")
+        quality_report = evaluate_model(
+            real_data=df_processed,
+            synthetic_data=synthetic_data,
+            metadata=metadata,
+            model_name="Enhanced PAR"
         )
         
-        # 10. 打印详细统计
-        print("\n=== 序列数据统计对比 ===")
-        print(f"\n原始数据:")
-        print(f"- 总记录数: {len(df_sequential)}")
-        print(f"- 用户数量: {df_sequential['user_id'].nunique()}")
-        print(f"- 平均每用户记录数: {len(df_sequential) / df_sequential['user_id'].nunique():.1f}")
+        # 7. 保存结果和报告
+        print("\n🔄 步骤7: 保存结果")
+        summary_file = save_results(
+            synthetic_data=synthetic_data,
+            model_name="PAR",
+            output_dir=output_dir,
+            metadata=metadata,
+            quality_report=quality_report,
+            train_time=train_time
+        )
         
-        print(f"\n合成数据:")
-        print(f"- 总记录数: {len(synthetic_data)}")
-        print(f"- 用户数量: {synthetic_data['user_id'].nunique()}")
-        print(f"- 平均每用户记录数: {len(synthetic_data) / synthetic_data['user_id'].nunique():.1f}")
+        # 8. 生成详细报告
+        print("\n🔄 步骤8: 生成详细报告")
+        detailed_report_file = os.path.join(output_dir, "PAR_detailed_report.md")
+        with open(detailed_report_file, 'w', encoding='utf-8') as f:
+            f.write("# Enhanced PAR 模型详细报告\n\n")
+            f.write(f"**生成时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            
+            f.write("## 📊 基本信息\n")
+            f.write(f"- **模型类型**: Enhanced PAR (概率自回归模型)\n")
+            f.write(f"- **目标用户**: {target_user_id}\n") 
+            f.write(f"- **训练数据**: {df_processed.shape[0]} 行 × {df_processed.shape[1]} 列\n")
+            f.write(f"- **生成数据**: {synthetic_data.shape[0]} 行 × {synthetic_data.shape[1]} 列\n")
+            f.write(f"- **训练时间**: {train_time}\n")
+            f.write(f"- **训练轮数**: {epochs}\n\n")
+            
+            if quality_report:
+                overall_score = quality_report.get_score() * 100
+                f.write("## 📈 质量评估\n")
+                f.write(f"- **总体质量分数**: {overall_score:.2f}%\n")
+                
+                if overall_score >= 90:
+                    quality_level = "🏆 卓越"
+                elif overall_score >= 80:
+                    quality_level = "🥇 优秀"
+                elif overall_score >= 70:
+                    quality_level = "🥈 良好"
+                elif overall_score >= 60:
+                    quality_level = "🥉 一般"
+                else:
+                    quality_level = "⚠️ 需要改进"
+                
+                f.write(f"- **质量等级**: {quality_level}\n\n")
+            
+            f.write("## 📋 数据统计\n")
+            f.write("### 真实数据统计\n")
+            f.write("```\n")
+            f.write(df_processed.describe().to_string())
+            f.write("\n```\n\n")
+            
+            f.write("### 合成数据统计\n")
+            f.write("```\n")
+            f.write(synthetic_data.describe().to_string())
+            f.write("\n```\n\n")
+            
+            f.write("## 🔍 数据样例\n")
+            f.write("### 真实数据样例\n")
+            f.write("```\n")
+            f.write(df_processed.head(10).to_string())
+            f.write("\n```\n\n")
+            
+            f.write("### 合成数据样例\n")
+            f.write("```\n")
+            f.write(synthetic_data.head(10).to_string())
+            f.write("\n```\n")
         
-        print(f"\n✅ PAR 模型执行完成！")
-        print(f"结果保存在: {output_dir}")
+        print(f"📊 ✓ 详细报告已保存至: {detailed_report_file}")
+        
+        # 9. 最终总结
+        print("\n" + "="*60)
+        print("🎉 Enhanced PAR 模型执行完成!")
+        print("="*60)
+        print(f"📊 训练数据: {df_processed.shape}")
+        print(f"📊 生成数据: {synthetic_data.shape}")
+        print(f"⏱️  训练耗时: {train_time}")
+        if quality_report:
+            print(f"📈 质量分数: {quality_report.get_score()*100:.2f}%")
+        print(f"📁 输出目录: {output_dir}")
+        print("="*60)
         
     except Exception as e:
-        print(f"❌ 执行过程中出现错误: {e}")
+        print(f"❌ Enhanced PAR 模型执行失败: {e}")
         import traceback
         traceback.print_exc()
+        return False
+    
+    return True
 
 if __name__ == "__main__":
     main() 
